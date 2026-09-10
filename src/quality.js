@@ -1,7 +1,10 @@
 /**
  * Adaptive render quality for mid-range phones.
  * Caps DPR, tracks FPS, degrades gracefully.
+ * iOS Safari: tighter starting DPR and drawing-buffer cap (thermal / GPU memory).
  */
+import { isIOS } from './ios.js';
+
 export function createQuality(renderer) {
   const isTouch =
     typeof window !== 'undefined' &&
@@ -12,12 +15,21 @@ export function createQuality(renderer) {
     window.matchMedia &&
     window.matchMedia('(pointer: coarse)').matches;
 
-  const mobile = isTouch || coarse || Math.min(window.innerWidth, window.innerHeight) < 700;
+  const ios = isIOS();
+  const mobile =
+    isTouch || coarse || ios || Math.min(window.innerWidth, window.innerHeight) < 700;
 
-  // Soft caps — phones rarely need full retina for a racing game
-  let maxDpr = mobile ? 1.5 : Math.min(window.devicePixelRatio || 1, 2);
-  let targetDpr = Math.min(window.devicePixelRatio || 1, maxDpr);
+  const nativeDpr = window.devicePixelRatio || 1;
+  // Soft caps — phones rarely need full retina for a racing game.
+  // 3x iPhones start lower; FPS logic can climb toward maxDpr.
+  let maxDpr = mobile ? 1.5 : Math.min(nativeDpr, 2);
+  if (ios) {
+    maxDpr = nativeDpr >= 3 ? 1.25 : Math.min(maxDpr, 1.5);
+  }
+  let targetDpr = Math.min(nativeDpr, maxDpr);
   let detail = mobile ? 0.75 : 1; // 0.55–1 scale for geometry density
+  let viewW = window.innerWidth;
+  let viewH = window.innerHeight;
 
   // FPS EMA
   let emaFps = 60;
@@ -26,6 +38,16 @@ export function createQuality(renderer) {
   let lastAdjust = 0;
 
   const antialias = !mobile;
+
+  function bufferCap() {
+    const longEdge = Math.max(viewW, viewH);
+    const maxLong = ios ? 1280 : 1920;
+    return Math.min(maxDpr, maxLong / Math.max(1, longEdge));
+  }
+
+  function ceiling() {
+    return Math.max(1, +Math.min(maxDpr, bufferCap()).toFixed(2));
+  }
 
   function apply() {
     renderer.setPixelRatio(targetDpr);
@@ -41,6 +63,8 @@ export function createQuality(renderer) {
     // Don't thrash — adjust at most every ~1.2s
     if (now - lastAdjust < 1200) return;
 
+    const cap = ceiling();
+
     if (emaFps < 48) {
       lowStreak++;
       highStreak = 0;
@@ -54,13 +78,13 @@ export function createQuality(renderer) {
           detail = Math.max(0.55, +(detail - 0.1).toFixed(2));
         }
       }
-    } else if (emaFps > 58 && targetDpr < maxDpr) {
+    } else if (emaFps > 58 && targetDpr < cap) {
       highStreak++;
       lowStreak = 0;
       if (highStreak >= 4) {
         lastAdjust = now;
         highStreak = 0;
-        targetDpr = Math.min(maxDpr, +(targetDpr + 0.15).toFixed(2));
+        targetDpr = Math.min(cap, +(targetDpr + 0.15).toFixed(2));
         apply();
       }
     } else {
@@ -70,12 +94,19 @@ export function createQuality(renderer) {
   }
 
   function resize(w, h) {
+    viewW = w;
+    viewH = h;
+    const cap = ceiling();
+    if (targetDpr > cap) {
+      targetDpr = cap;
+    }
     renderer.setSize(w, h, false);
     apply();
   }
 
   return {
     mobile,
+    ios,
     antialias,
     get dpr() {
       return targetDpr;

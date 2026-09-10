@@ -5,6 +5,8 @@ import { createEnvironment } from './environment.js';
 import { BoostTrail } from './particles.js';
 import { createQuality } from './quality.js';
 import { createTouchControls } from './touch.js';
+import { unlockAudio } from './audio.js';
+import { getViewportSize, hardenIOS, isIOS } from './ios.js';
 
 const canvas = document.getElementById('game-canvas');
 const speedEl = document.getElementById('speed-value');
@@ -13,16 +15,17 @@ const hintEl = document.getElementById('hint');
 const hintBody = document.getElementById('hint-body');
 const hintContinue = document.getElementById('hint-continue');
 
-// Detect mobile early for renderer flags
 const preferTouch =
   'ontouchstart' in window ||
   (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) ||
   (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 
+const view0 = getViewportSize(canvas);
+
 const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: !preferTouch,
-  powerPreference: 'high-performance',
+  powerPreference: isIOS() ? 'default' : 'high-performance',
   alpha: false,
   stencil: false,
   depth: true,
@@ -34,10 +37,10 @@ renderer.setClearColor(0x020508, 1);
 renderer.shadowMap.enabled = false;
 
 const quality = createQuality(renderer);
-quality.resize(window.innerWidth, window.innerHeight);
+quality.resize(view0.w, view0.h);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 1400);
+const camera = new THREE.PerspectiveCamera(72, view0.w / Math.max(1, view0.h), 0.1, 1400);
 
 const envOpts = { detail: quality.detail };
 createEnvironment(scene, envOpts);
@@ -67,7 +70,7 @@ const input = {
 
 let started = false;
 let hintHidden = false;
-let pageVisible = true;
+let pageVisible = document.visibilityState !== 'hidden';
 let rafId = 0;
 
 function hideHint() {
@@ -77,6 +80,7 @@ function hideHint() {
 }
 
 function engage() {
+  unlockAudio();
   if (!started) {
     started = true;
     hideHint();
@@ -126,37 +130,36 @@ function onKey(e, down) {
 window.addEventListener('keydown', (e) => onKey(e, true));
 window.addEventListener('keyup', (e) => onKey(e, false));
 
-function onResize() {
-  const w = Math.round(canvas.clientWidth || window.innerWidth);
-  const h = Math.round(canvas.clientHeight || window.innerHeight);
+const clock = new THREE.Clock();
+
+function onResize(size) {
+  const w = size?.w ?? window.innerWidth;
+  const h = Math.max(1, size?.h ?? window.innerHeight);
   if (w < 1 || h < 1) return;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   quality.resize(w, h);
 }
-window.addEventListener('resize', onResize);
-window.addEventListener('orientationchange', () => {
-  setTimeout(onResize, 120);
-});
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', onResize);
-}
 
-window.addEventListener(
-  'scroll',
-  () => {
-    if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+hardenIOS({
+  canvas,
+  onPause() {
+    pageVisible = false;
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
   },
-  { passive: true }
-);
-
-document.addEventListener('visibilitychange', () => {
-  pageVisible = document.visibilityState === 'visible';
-  if (pageVisible) {
-    clock.getDelta(); // flush large dt
+  onResume() {
+    pageVisible = true;
+    clock.getDelta();
     if (!rafId) rafId = requestAnimationFrame(animate);
-  }
+  },
+  onResize,
 });
+
+window.addEventListener('pointerdown', unlockAudio, { once: true, passive: true });
+window.addEventListener('touchend', unlockAudio, { once: true, passive: true });
 
 // Initial camera
 {
@@ -166,7 +169,6 @@ document.addEventListener('visibilitychange', () => {
   lookTarget.set(p.x, p.y + 0.8, p.z + 6);
 }
 
-const clock = new THREE.Clock();
 let hudTimer = 0;
 let speedText = '0';
 
@@ -222,4 +224,4 @@ function animate(now) {
   renderer.render(scene, camera);
 }
 
-rafId = requestAnimationFrame(animate);
+if (pageVisible) rafId = requestAnimationFrame(animate);
