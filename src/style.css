@@ -1,0 +1,506 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --glass: rgba(255, 255, 255, 0.08);
+  --glass-strong: rgba(255, 255, 255, 0.12);
+  --glass-fill: rgba(22, 26, 34, 0.62);
+  --hairline: rgba(255, 255, 255, 0.14);
+  --text: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.55);
+  --text-tertiary: rgba(255, 255, 255, 0.36);
+  --cyan: #5ac8fa;
+  --cyan-soft: rgba(90, 200, 250, 0.55);
+  --amber: #ff9f0a;
+  --amber-soft: rgba(255, 159, 10, 0.55);
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 1.5px 6px rgba(0, 0, 0, 0.25);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
+  --font: system-ui, -apple-system, "SF Pro Display", "SF Pro Text",
+    "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #020508;
+  font-family: var(--font);
+  color: var(--text);
+  touch-action: none;
+  overscroll-behavior: none;
+  position: fixed;
+  inset: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+#hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
+    env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+}
+
+/* ——— Speed cluster: calm, asymmetric, optical right align ——— */
+#speedo {
+  position: absolute;
+  bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+  right: calc(36px + env(safe-area-inset-right, 0px));
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+#speed-value {
+  font-size: clamp(44px, 9vw, 72px);
+  font-weight: 200;
+  letter-spacing: -0.02em;
+  line-height: 0.92;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+#speed-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 88px;
+}
+
+#speed-unit {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding-right: 1px;
+}
+
+/* iOS-style thin capsule boost */
+#boost-bar-wrap {
+  width: min(112px, 26vw);
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 0.5px var(--hairline);
+}
+
+#boost-bar {
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--cyan-soft), var(--cyan));
+  transition: width 0.12s linear;
+  will-change: width;
+  box-shadow: none;
+}
+
+/* ——— Start overlay: Apple modal card ——— */
+#hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(24px, env(safe-area-inset-top, 0px))
+    max(24px, env(safe-area-inset-right, 0px))
+    max(24px, env(safe-area-inset-bottom, 0px))
+    max(24px, env(safe-area-inset-left, 0px));
+  background: rgba(2, 5, 8, 0.28);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(18px) saturate(1.2);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.45s var(--ease-out), visibility 0.45s var(--ease-out),
+    backdrop-filter 0.45s var(--ease-out), -webkit-backdrop-filter 0.45s var(--ease-out);
+  pointer-events: none;
+}
+
+#hint.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.hint-card {
+  width: min(340px, 92vw);
+  padding: 32px 28px 24px;
+  border-radius: 22px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(40px) saturate(1.4);
+  backdrop-filter: blur(40px) saturate(1.4);
+  box-shadow: var(--shadow), inset 0 0 0 0.5px var(--hairline);
+  text-align: center;
+  transform: translateY(8px) scale(0.985);
+  opacity: 0;
+  transition: transform 0.5s var(--ease-spring), opacity 0.45s var(--ease-out);
+}
+
+#hint.visible .hint-card {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.hint-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  opacity: 0.85;
+  margin-bottom: 10px;
+}
+
+.hint-title {
+  font-size: clamp(28px, 6vw, 34px);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1.1;
+  margin-bottom: 12px;
+}
+
+.hint-body {
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  color: var(--text-secondary);
+  margin: 0 auto 22px;
+  max-width: 26ch;
+}
+
+.hint-continue {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 20px;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #061018;
+  background: linear-gradient(180deg, #7dd8ff 0%, var(--cyan) 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 4px 16px rgba(90, 200, 250, 0.28);
+  cursor: pointer;
+  transition: transform 0.2s var(--ease-spring), filter 0.2s var(--ease-out),
+    opacity 0.2s var(--ease-out);
+  pointer-events: auto;
+}
+
+.hint-continue:hover {
+  filter: brightness(1.05);
+}
+
+.hint-continue:active {
+  transform: scale(0.985);
+  filter: brightness(0.97);
+}
+
+/* ——— Touch controls: translucent discs, quiet until pressed ——— */
+#touch-controls {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  touch-action: none;
+  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
+    env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+}
+
+#touch-controls.active {
+  display: block;
+}
+
+.touch-zone {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+#steer-zone {
+  left: max(16px, env(safe-area-inset-left, 0px));
+  bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  width: min(42vw, 168px);
+  height: min(42vw, 168px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+#steer-base {
+  position: relative;
+  width: min(34vw, 128px);
+  height: min(34vw, 128px);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  backdrop-filter: blur(16px) saturate(1.1);
+  box-shadow: inset 0 0 0 0.5px var(--hairline), 0 4px 20px rgba(0, 0, 0, 0.25);
+  opacity: 0.55;
+  transition: opacity 0.25s var(--ease-out), background 0.25s var(--ease-out),
+    box-shadow 0.25s var(--ease-out);
+}
+
+#steer-zone.active #steer-base {
+  opacity: 0.95;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 0.5px rgba(90, 200, 250, 0.35),
+    0 6px 24px rgba(0, 0, 0, 0.3);
+}
+
+#steer-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34%;
+  height: 34%;
+  margin: -17% 0 0 -17%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.35),
+    0 2px 10px rgba(0, 0, 0, 0.3);
+  transform: translate(0, 0);
+  will-change: transform;
+  pointer-events: none;
+  transition: background 0.2s var(--ease-out);
+}
+
+#steer-zone.active #steer-knob {
+  background: rgba(90, 200, 250, 0.45);
+  box-shadow: inset 0 0 0 0.5px rgba(90, 200, 250, 0.55),
+    0 2px 12px rgba(90, 200, 250, 0.25);
+}
+
+#action-zone {
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.action-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ctrl-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  backdrop-filter: blur(16px) saturate(1.1);
+  box-shadow: inset 0 0 0 0.5px var(--hairline), 0 4px 18px rgba(0, 0, 0, 0.22);
+  opacity: 0.52;
+  color: var(--text);
+  transition: opacity 0.22s var(--ease-out), background 0.22s var(--ease-out),
+    box-shadow 0.22s var(--ease-out), transform 0.2s var(--ease-spring);
+}
+
+.ctrl-btn .btn-glyph {
+  display: block;
+  width: 22%;
+  height: 22%;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* Chevron glyphs via CSS — quiet, no arcade labels */
+.ctrl-btn.throttle .btn-glyph {
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 10px solid rgba(255, 255, 255, 0.75);
+  background: none;
+}
+
+.ctrl-btn.brake .btn-glyph {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid rgba(255, 255, 255, 0.65);
+  background: none;
+}
+
+.ctrl-btn.boost .btn-glyph {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--amber);
+  transform: rotate(45deg);
+  opacity: 0.85;
+  box-shadow: 0 0 10px rgba(255, 159, 10, 0.35);
+}
+
+.ctrl-btn.throttle {
+  width: min(24vw, 92px);
+  height: min(24vw, 92px);
+}
+
+.ctrl-btn.brake {
+  width: min(24vw, 92px);
+  height: min(14vw, 48px);
+  border-radius: 999px;
+}
+
+.ctrl-btn.boost {
+  width: min(20vw, 76px);
+  height: min(20vw, 76px);
+  margin-bottom: 6px;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 159, 10, 0.28),
+    0 4px 18px rgba(0, 0, 0, 0.22);
+}
+
+.ctrl-btn.pressed {
+  opacity: 0.95;
+  background: rgba(90, 200, 250, 0.22);
+  box-shadow: inset 0 0 0 0.5px rgba(90, 200, 250, 0.45),
+    0 2px 14px rgba(90, 200, 250, 0.2);
+  transform: scale(0.96);
+}
+
+.ctrl-btn.boost.pressed {
+  background: rgba(255, 159, 10, 0.28);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 159, 10, 0.55),
+    0 2px 16px rgba(255, 159, 10, 0.28);
+}
+
+
+/* When virtual controls are on, keep speed optically clear of right thumb */
+#app:has(#touch-controls.active) #speedo {
+  right: calc(118px + env(safe-area-inset-right, 0px));
+}
+
+@media (orientation: portrait) and (max-width: 900px) {
+  #app:has(#touch-controls.active) #speedo {
+    right: calc(18px + env(safe-area-inset-right, 0px));
+  }
+}
+
+/* Portrait: speed top-right so thumbs clear bottom */
+@media (orientation: portrait) and (max-width: 900px) {
+  #speedo {
+    top: calc(18px + env(safe-area-inset-top, 0px));
+    bottom: auto;
+    right: calc(18px + env(safe-area-inset-right, 0px));
+  }
+
+  #steer-zone {
+    bottom: max(28px, env(safe-area-inset-bottom, 0px));
+    width: min(46vw, 164px);
+    height: min(46vw, 164px);
+  }
+
+  #action-zone {
+    bottom: max(28px, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Landscape: primary racing layout */
+@media (orientation: landscape) and (max-height: 500px) {
+  #speedo {
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    right: calc(108px + env(safe-area-inset-right, 0px));
+  }
+
+  #speed-value {
+    font-size: 40px;
+  }
+
+  #steer-zone {
+    width: min(28vh, 148px);
+    height: min(28vh, 148px);
+    bottom: max(10px, env(safe-area-inset-bottom, 0px));
+    left: max(10px, env(safe-area-inset-left, 0px));
+  }
+
+  #steer-base {
+    width: min(22vh, 112px);
+    height: min(22vh, 112px);
+  }
+
+  #action-zone {
+    bottom: max(10px, env(safe-area-inset-bottom, 0px));
+    right: max(10px, env(safe-area-inset-right, 0px));
+    gap: 12px;
+  }
+
+  .ctrl-btn.throttle {
+    width: min(20vh, 80px);
+    height: min(20vh, 80px);
+  }
+
+  .ctrl-btn.brake {
+    width: min(20vh, 80px);
+    height: min(11vh, 40px);
+  }
+
+  .ctrl-btn.boost {
+    width: min(16vh, 64px);
+    height: min(16vh, 64px);
+    margin-bottom: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hint-card {
+    padding: 28px 22px 20px;
+    border-radius: 20px;
+  }
+}
+
+/* Reduce motion preference */
+@media (prefers-reduced-motion: reduce) {
+  #hint,
+  .hint-card,
+  .ctrl-btn,
+  #steer-base,
+  #steer-knob,
+  .hint-continue {
+    transition: none;
+  }
+}
