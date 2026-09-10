@@ -24,6 +24,24 @@ Open **http://localhost:5173** (or `http://<box-ip>:5173` from a phone on the sa
 npm run build
 ```
 
+`npm run build` writes a static site to `dist/` (HTML, bundled JS/CSS, manifest, icons). Host that folder on Vercel, Render Static Site, or any static CDN.
+
+- **Vercel:** Vite is auto-detected. Deploy the repo; output is `dist`.
+- **Render:** Static Site. Build command `npm install && npm run build`, publish directory `dist`.
+
+The production origin must be **HTTPS** for Add to Home Screen / standalone display.
+
+## Play on iOS
+
+Play Gridwake as a fullscreen Home Screen app on iPhone. Use **Safari** (Chrome on iOS cannot install it this way).
+
+1. Open the game’s **HTTPS** URL in **Safari**.
+2. Tap the **Share** button (square with an arrow pointing up).
+3. Scroll the sheet and tap **Add to Home Screen**.
+4. Tap **Add**. Gridwake appears on the Home Screen.
+
+Open it from the Home Screen for a standalone, black-chrome experience with the existing touch controls (left stick, throttle, brake, amber boost). Landscape is the primary racing layout; rotate for the best view.
+
 ## Controls
 
 ### Desktop

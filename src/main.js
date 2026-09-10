@@ -127,8 +127,9 @@ window.addEventListener('keydown', (e) => onKey(e, true));
 window.addEventListener('keyup', (e) => onKey(e, false));
 
 function onResize() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
+  const w = Math.round(canvas.clientWidth || window.innerWidth);
+  const h = Math.round(canvas.clientHeight || window.innerHeight);
+  if (w < 1 || h < 1) return;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   quality.resize(w, h);
@@ -137,6 +138,17 @@ window.addEventListener('resize', onResize);
 window.addEventListener('orientationchange', () => {
   setTimeout(onResize, 120);
 });
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', onResize);
+}
+
+window.addEventListener(
+  'scroll',
+  () => {
+    if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+  },
+  { passive: true }
+);
 
 document.addEventListener('visibilitychange', () => {
   pageVisible = document.visibilityState === 'visible';
