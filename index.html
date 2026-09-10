@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#020508" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>LIGHT CYCLE</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game-canvas"></canvas>
+
+      <div id="hud">
+        <div id="speedo">
+          <div id="speed-value">0</div>
+          <div id="speed-meta">
+            <span id="speed-unit">km/h</span>
+            <div id="boost-bar-wrap" aria-label="Boost">
+              <div id="boost-bar"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="hint" class="visible" role="dialog" aria-modal="true" aria-labelledby="hint-title">
+          <div class="hint-card">
+            <div class="hint-eyebrow">Forerunner Circuit</div>
+            <h1 id="hint-title" class="hint-title">Light Cycle</h1>
+            <p id="hint-body" class="hint-body">
+              W S A D to drive · Space to boost
+            </p>
+            <button type="button" id="hint-continue" class="hint-continue">Continue</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="touch-controls" aria-hidden="true">
+        <div id="steer-zone" class="touch-zone">
+          <div id="steer-base">
+            <div id="steer-knob"></div>
+          </div>
+        </div>
+
+        <div id="action-zone" class="touch-zone">
+          <button type="button" id="btn-boost" class="ctrl-btn boost" data-action="boost" aria-label="Boost">
+            <span class="btn-glyph" aria-hidden="true"></span>
+          </button>
+          <div class="action-column">
+            <button type="button" id="btn-throttle" class="ctrl-btn throttle" data-action="throttle" aria-label="Throttle">
+              <span class="btn-glyph" aria-hidden="true"></span>
+            </button>
+            <button type="button" id="btn-brake" class="ctrl-btn brake" data-action="brake" aria-label="Brake">
+              <span class="btn-glyph" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
