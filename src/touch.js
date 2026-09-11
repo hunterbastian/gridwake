@@ -1,17 +1,17 @@
 /**
- * Tron-like virtual controls: left analog steer stick,
- * right hold-to-throttle + brake + boost (one-thumb).
- * Prevents scroll/zoom/gesture interference.
+ * NFS-like mobile controls: wide sticky analog wheel on the left,
+ * large throttle / brake pads + one-thumb nitro on the right.
  */
 export function createTouchControls(input, { onEngage } = {}) {
   const root = document.getElementById('touch-controls');
   if (!root) {
-    return { destroy() {}, setVisible() {} };
+    return { destroy() {}, setVisible() {}, update() {} };
   }
 
   const stickZone = document.getElementById('steer-zone');
   const stickKnob = document.getElementById('steer-knob');
   const stickBase = document.getElementById('steer-base');
+  const steerWheel = document.getElementById('steer-wheel');
   const throttleBtn = document.getElementById('btn-throttle');
   const brakeBtn = document.getElementById('btn-brake');
   const boostBtn = document.getElementById('btn-boost');
@@ -27,63 +27,61 @@ export function createTouchControls(input, { onEngage } = {}) {
   root.classList.toggle('active', visible);
   root.setAttribute('aria-hidden', visible ? 'false' : 'true');
 
-  // Pointer tracking — one finger per control
-  const pointers = new Map(); // pointerId -> role
+  const pointers = new Map();
 
-  const steer = { active: false, x: 0, y: 0, cx: 0, cy: 0, r: 48 };
-  const tmpRect = { left: 0, top: 0, width: 0, height: 0 };
+  const steer = { active: false, raw: 0, x: 0, y: 0, r: 56 };
+  const RETURN = 7.5;
+  const STICK = 18;
 
   function engage() {
     if (onEngage) onEngage();
   }
 
+  function applySteer(axis) {
+    const dead = 0.08;
+    let sx = Math.abs(axis) < dead ? 0 : axis;
+    if (sx !== 0) {
+      const mag = Math.min(1, (Math.abs(axis) - dead) / (1 - dead));
+      sx = Math.sign(axis) * Math.pow(mag, 1.28);
+    }
+    input.steerAxis = -sx;
+    input.left = input.steerAxis > 0.12;
+    input.right = input.steerAxis < -0.12;
+  }
+
   function updateSteerVisual() {
     if (!stickKnob) return;
     const kx = steer.x * steer.r;
-    const ky = steer.y * steer.r;
+    const ky = steer.y * steer.r * 0.22;
     stickKnob.style.transform = `translate(${kx}px, ${ky}px)`;
-    stickZone.classList.toggle('active', steer.active);
+    if (steerWheel) {
+      steerWheel.style.transform = `rotate(${-steer.x * 78}deg)`;
+    }
+    stickZone.classList.toggle('active', steer.active || Math.abs(steer.x) > 0.04);
   }
 
   function readSteerFromEvent(e) {
     const rect = stickBase.getBoundingClientRect();
     const cx = rect.left + rect.width * 0.5;
     const cy = rect.top + rect.height * 0.5;
-    steer.cx = cx;
-    steer.cy = cy;
-    steer.r = Math.min(rect.width, rect.height) * 0.38;
+    steer.r = Math.min(rect.width, rect.height) * 0.42;
     let dx = e.clientX - cx;
     let dy = e.clientY - cy;
-    const len = Math.hypot(dx, dy) || 1;
     const max = steer.r;
-    if (len > max) {
-      dx = (dx / len) * max;
-      dy = (dy / len) * max;
-    }
-    steer.x = dx / max;
+    dx = THREE_CLAMP(dx, -max, max);
+    dy = THREE_CLAMP(dy, -max * 0.35, max * 0.35);
+    steer.raw = dx / max;
     steer.y = dy / max;
-    // Horizontal dominates for racing; deadzone
-    const dead = 0.12;
-    const sx = Math.abs(steer.x) < dead ? 0 : steer.x;
-    input.steerAxis = -sx; // left = positive (matches A key)
-    // Soft clamp magnitude for feel
-    if (Math.abs(input.steerAxis) > 0) {
-      const mag = Math.min(1, (Math.abs(steer.x) - dead) / (1 - dead));
-      input.steerAxis = Math.sign(input.steerAxis) * mag;
-    }
-    input.left = input.steerAxis > 0.15;
-    input.right = input.steerAxis < -0.15;
-    updateSteerVisual();
   }
 
-  function clearSteer() {
+  function THREE_CLAMP(v, a, b) {
+    return Math.max(a, Math.min(b, v));
+  }
+
+  function clearSteerHeld() {
     steer.active = false;
-    steer.x = 0;
+    steer.raw = 0;
     steer.y = 0;
-    input.steerAxis = 0;
-    input.left = false;
-    input.right = false;
-    updateSteerVisual();
   }
 
   function setButton(role, down) {
@@ -109,7 +107,6 @@ export function createTouchControls(input, { onEngage } = {}) {
 
   function onPointerDown(e) {
     if (!visible) return;
-    // Only handle touches / pen inside controls; mouse optional for testing
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const role = roleFromTarget(e.target);
     if (!role) return;
@@ -145,12 +142,11 @@ export function createTouchControls(input, { onEngage } = {}) {
     e.preventDefault();
     pointers.delete(e.pointerId);
     if (role === 'steer') {
-      // Only clear if no other steer pointer
       let still = false;
       for (const r of pointers.values()) {
         if (r === 'steer') still = true;
       }
-      if (!still) clearSteer();
+      if (!still) clearSteerHeld();
     } else {
       setButton(role, false);
     }
@@ -161,7 +157,6 @@ export function createTouchControls(input, { onEngage } = {}) {
     }
   }
 
-  // passive:false so preventDefault stops scroll/zoom
   const opts = { passive: false };
   root.addEventListener('pointerdown', onPointerDown, opts);
   root.addEventListener('pointermove', onPointerMove, opts);
@@ -169,7 +164,6 @@ export function createTouchControls(input, { onEngage } = {}) {
   root.addEventListener('pointercancel', onPointerUp, opts);
   root.addEventListener('lostpointercapture', onPointerUp, opts);
 
-  // Block page gestures on the whole app shell
   const app = document.getElementById('app');
   const blockGesture = (e) => {
     if (e.touches && e.touches.length > 1) e.preventDefault();
@@ -178,13 +172,11 @@ export function createTouchControls(input, { onEngage } = {}) {
   document.addEventListener('gesturechange', (e) => e.preventDefault(), opts);
   if (app) {
     app.addEventListener('touchmove', (e) => {
-      // Allow nothing to scroll
       e.preventDefault();
     }, opts);
     app.addEventListener('touchstart', blockGesture, opts);
   }
 
-  // Prevent double-tap zoom on controls
   let lastTap = 0;
   root.addEventListener(
     'touchend',
@@ -201,7 +193,10 @@ export function createTouchControls(input, { onEngage } = {}) {
     root.classList.toggle('active', v);
     root.setAttribute('aria-hidden', v ? 'false' : 'true');
     if (!v) {
-      clearSteer();
+      clearSteerHeld();
+      steer.x = 0;
+      applySteer(0);
+      updateSteerVisual();
       setButton('throttle', false);
       setButton('brake', false);
       setButton('boost', false);
@@ -209,7 +204,20 @@ export function createTouchControls(input, { onEngage } = {}) {
     }
   }
 
-  // Show on first touch even on hybrid devices
+  function update(dt) {
+    if (!visible) return;
+    const target = steer.active ? steer.raw : 0;
+    const rate = steer.active ? STICK : RETURN;
+    const k = 1 - Math.exp(-rate * dt);
+    steer.x += (target - steer.x) * k;
+    if (!steer.active) {
+      steer.y += (0 - steer.y) * k;
+    }
+    if (Math.abs(steer.x) < 0.004 && !steer.active) steer.x = 0;
+    applySteer(steer.x);
+    updateSteerVisual();
+  }
+
   window.addEventListener(
     'touchstart',
     () => {
@@ -221,6 +229,7 @@ export function createTouchControls(input, { onEngage } = {}) {
   return {
     preferTouch,
     setVisible,
+    update,
     destroy() {
       root.removeEventListener('pointerdown', onPointerDown);
       root.removeEventListener('pointermove', onPointerMove);
