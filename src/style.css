@@ -73,6 +73,21 @@ body,
   -webkit-user-select: none;
 }
 
+/* Speed-linked FOV vignette — Apple-clean, no HUD clutter */
+#speed-veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 8;
+  opacity: 0;
+  background: radial-gradient(
+    ellipse at 50% 42%,
+    transparent 46%,
+    rgba(8, 6, 4, 0.55) 100%
+  );
+  will-change: opacity;
+}
+
 #hud {
   position: absolute;
   inset: 0;
@@ -270,10 +285,10 @@ body,
 }
 
 #steer-zone {
-  left: max(16px, env(safe-area-inset-left, 0px));
-  bottom: max(20px, env(safe-area-inset-bottom, 0px));
-  width: min(42vw, 168px);
-  height: min(42vw, 168px);
+  left: max(12px, env(safe-area-inset-left, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  width: min(52vw, 220px);
+  height: min(52vw, 220px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -281,8 +296,8 @@ body,
 
 #steer-base {
   position: relative;
-  width: min(34vw, 128px);
-  height: min(34vw, 128px);
+  width: min(42vw, 168px);
+  height: min(42vw, 168px);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.06);
   -webkit-backdrop-filter: blur(16px) saturate(1.1);
@@ -291,6 +306,19 @@ body,
   opacity: 0.55;
   transition: opacity 0.25s var(--ease-out), background 0.25s var(--ease-out),
     box-shadow 0.25s var(--ease-out);
+}
+
+#steer-wheel {
+  position: absolute;
+  inset: 7%;
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.16),
+    inset 0 0 0 10px rgba(255, 255, 255, 0.04);
+  background:
+    linear-gradient(90deg, transparent 48%, rgba(90, 200, 250, 0.35) 50%, transparent 52%),
+    linear-gradient(0deg, transparent 48%, rgba(255, 255, 255, 0.12) 50%, transparent 52%);
+  will-change: transform;
 }
 
 #steer-zone.active #steer-base {
@@ -304,9 +332,9 @@ body,
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 34%;
-  height: 34%;
-  margin: -17% 0 0 -17%;
+  width: 28%;
+  height: 28%;
+  margin: -14% 0 0 -14%;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.22);
   box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.35),
@@ -400,20 +428,20 @@ body,
 }
 
 .ctrl-btn.throttle {
-  width: min(24vw, 92px);
-  height: min(24vw, 92px);
+  width: min(28vw, 112px);
+  height: min(28vw, 112px);
 }
 
 .ctrl-btn.brake {
-  width: min(24vw, 92px);
-  height: min(14vw, 48px);
+  width: min(28vw, 112px);
+  height: min(16vw, 56px);
   border-radius: 999px;
 }
 
 .ctrl-btn.boost {
-  width: min(20vw, 76px);
-  height: min(20vw, 76px);
-  margin-bottom: 6px;
+  width: min(22vw, 88px);
+  height: min(22vw, 88px);
+  margin-bottom: 18px;
   box-shadow: inset 0 0 0 0.5px rgba(255, 159, 10, 0.28),
     0 4px 18px rgba(0, 0, 0, 0.22);
 }
@@ -435,7 +463,7 @@ body,
 
 /* When virtual controls are on, keep speed optically clear of right thumb */
 #app:has(#touch-controls.active) #speedo {
-  right: calc(118px + env(safe-area-inset-right, 0px));
+  right: calc(132px + env(safe-area-inset-right, 0px));
 }
 
 @media (orientation: portrait) and (max-width: 900px) {
@@ -454,8 +482,8 @@ body,
 
   #steer-zone {
     bottom: max(28px, env(safe-area-inset-bottom, 0px));
-    width: min(46vw, 164px);
-    height: min(46vw, 164px);
+    width: min(54vw, 200px);
+    height: min(54vw, 200px);
   }
 
   #action-zone {
@@ -475,37 +503,37 @@ body,
   }
 
   #steer-zone {
-    width: min(28vh, 148px);
-    height: min(28vh, 148px);
-    bottom: max(10px, env(safe-area-inset-bottom, 0px));
-    left: max(10px, env(safe-area-inset-left, 0px));
+    width: min(38vh, 188px);
+    height: min(38vh, 188px);
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    left: max(8px, env(safe-area-inset-left, 0px));
   }
 
   #steer-base {
-    width: min(22vh, 112px);
-    height: min(22vh, 112px);
+    width: min(30vh, 148px);
+    height: min(30vh, 148px);
   }
 
   #action-zone {
-    bottom: max(10px, env(safe-area-inset-bottom, 0px));
-    right: max(10px, env(safe-area-inset-right, 0px));
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    right: max(8px, env(safe-area-inset-right, 0px));
     gap: 12px;
   }
 
   .ctrl-btn.throttle {
-    width: min(20vh, 80px);
-    height: min(20vh, 80px);
+    width: min(24vh, 96px);
+    height: min(24vh, 96px);
   }
 
   .ctrl-btn.brake {
-    width: min(20vh, 80px);
-    height: min(11vh, 40px);
+    width: min(24vh, 96px);
+    height: min(13vh, 48px);
   }
 
   .ctrl-btn.boost {
-    width: min(16vh, 64px);
-    height: min(16vh, 64px);
-    margin-bottom: 4px;
+    width: min(18vh, 76px);
+    height: min(18vh, 76px);
+    margin-bottom: 10px;
   }
 }
 
@@ -523,7 +551,13 @@ body,
   .ctrl-btn,
   #steer-base,
   #steer-knob,
-  .hint-continue {
+  #steer-wheel,
+  .hint-continue,
+  #speed-veil {
     transition: none;
+  }
+
+  #speed-veil {
+    opacity: 0 !important;
   }
 }

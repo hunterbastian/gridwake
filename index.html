@@ -26,6 +26,7 @@
   <body>
     <div id="app">
       <canvas id="game-canvas" draggable="false"></canvas>
+      <div id="speed-veil" aria-hidden="true"></div>
 
       <div id="hud">
         <div id="speedo">
@@ -53,6 +54,7 @@
       <div id="touch-controls" aria-hidden="true">
         <div id="steer-zone" class="touch-zone">
           <div id="steer-base">
+            <div id="steer-wheel" aria-hidden="true"></div>
             <div id="steer-knob"></div>
           </div>
         </div>
@@ -62,10 +64,10 @@
             <span class="btn-glyph" aria-hidden="true"></span>
           </button>
           <div class="action-column">
-            <button type="button" id="btn-throttle" class="ctrl-btn throttle" data-action="throttle" aria-label="Throttle">
+            <button type="button" id="btn-brake" class="ctrl-btn brake" data-action="brake" aria-label="Brake">
               <span class="btn-glyph" aria-hidden="true"></span>
             </button>
-            <button type="button" id="btn-brake" class="ctrl-btn brake" data-action="brake" aria-label="Brake">
+            <button type="button" id="btn-throttle" class="ctrl-btn throttle" data-action="throttle" aria-label="Throttle">
               <span class="btn-glyph" aria-hidden="true"></span>
             </button>
           </div>

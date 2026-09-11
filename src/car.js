@@ -187,17 +187,22 @@ export class CarController {
     this.car = car;
     this.road = road;
     this.speed = 0;
-    this.maxSpeed = 95;
-    this.boostMaxSpeed = 145;
-    this.acceleration = 38;
-    this.brakeForce = 55;
-    this.drag = 8;
+    // Tron-cycle urgency: higher cruise + nitro punch, still touch-controllable
+    this.maxSpeed = 122;
+    this.boostMaxSpeed = 186;
+    this.acceleration = 54;
+    this.boostAccelMul = 2.42;
+    this.brakeForce = 72;
+    this.drag = 7;
     this.steerAngle = 0;
-    this.maxSteer = 0.042;
+    this.maxSteer = 0.05;
     this.boostEnergy = 1;
     this.boosting = false;
     this.yaw = 0;
     this.lateralOffset = 0;
+    this.longG = 0;
+    this.throttle = 0;
+    this.braking = false;
 
     // Reused temps — no alloc in update
     this._forward = new THREE.Vector3();
@@ -226,15 +231,20 @@ export class CarController {
 
     this.boosting = input.boost && this.boostEnergy > 0.05 && this.speed > 10;
     if (this.boosting) {
-      this.boostEnergy = Math.max(0, this.boostEnergy - dt * 0.35);
+      this.boostEnergy = Math.max(0, this.boostEnergy - dt * 0.38);
     } else {
-      this.boostEnergy = Math.min(1, this.boostEnergy + dt * 0.12);
+      this.boostEnergy = Math.min(1, this.boostEnergy + dt * 0.11);
     }
+
+    this.throttle = accel > 0 ? 1 : 0;
+    this.braking = accel < 0;
+    const longTarget = this.boosting ? 1 : accel > 0 ? 0.52 : accel < 0 ? -1 : 0;
+    this.longG = THREE.MathUtils.lerp(this.longG, longTarget, 1 - Math.pow(0.05, dt));
 
     const maxSpd = this.boosting ? this.boostMaxSpeed : this.maxSpeed;
 
     if (accel > 0) {
-      this.speed += this.acceleration * (this.boosting ? 1.8 : 1) * dt;
+      this.speed += this.acceleration * (this.boosting ? this.boostAccelMul : 1) * dt;
     } else if (accel < 0) {
       this.speed -= this.brakeForce * dt;
     } else {
@@ -242,15 +252,19 @@ export class CarController {
       else if (this.speed < 0) this.speed = Math.min(0, this.speed + this.drag * dt);
     }
 
-    this.speed = THREE.MathUtils.clamp(this.speed, -25, maxSpd);
+    this.speed = THREE.MathUtils.clamp(this.speed, -28, maxSpd);
     if (!this.boosting && this.speed > this.maxSpeed) {
-      this.speed = THREE.MathUtils.lerp(this.speed, this.maxSpeed, 1 - Math.pow(0.01, dt));
+      this.speed = THREE.MathUtils.lerp(this.speed, this.maxSpeed, 1 - Math.pow(0.012, dt));
     }
 
-    const steerFactor = THREE.MathUtils.clamp(Math.abs(this.speed) / 40, 0.25, 1);
-    const targetSteer = steerInput * this.maxSteer * steerFactor * Math.sign(this.speed || 1);
-    this.steerAngle = THREE.MathUtils.lerp(this.steerAngle, targetSteer, 1 - Math.pow(0.001, dt));
-    this.yaw += this.steerAngle * Math.abs(this.speed) * dt * 2.2;
+    // NFS-like: responsive at cruise, understeer at top speed so touch stays planted
+    const spdAbs = Math.abs(this.speed);
+    const steerFactor = THREE.MathUtils.clamp(spdAbs / 48, 0.22, 1);
+    const highSpd = THREE.MathUtils.clamp((spdAbs - 70) / 110, 0, 1);
+    const steerDamp = 1 - highSpd * 0.38;
+    const targetSteer = steerInput * this.maxSteer * steerFactor * steerDamp * Math.sign(this.speed || 1);
+    this.steerAngle = THREE.MathUtils.lerp(this.steerAngle, targetSteer, 1 - Math.pow(0.0012, dt));
+    this.yaw += this.steerAngle * spdAbs * dt * 2.05;
 
     this._forward.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     this.car.group.position.addScaledVector(this._forward, this.speed * dt);
@@ -278,11 +292,16 @@ export class CarController {
     this.car.group.rotation.order = 'YXZ';
     this.car.group.rotation.y = this.yaw;
     const pitch = Math.asin(THREE.MathUtils.clamp(info.tangent.y, -0.4, 0.4));
-    this.car.group.rotation.x = THREE.MathUtils.lerp(this.car.group.rotation.x, -pitch * 0.5, 0.1);
+    const accelPitch = this.longG * (this.boosting ? 0.055 : 0.04);
+    this.car.group.rotation.x = THREE.MathUtils.lerp(
+      this.car.group.rotation.x,
+      -pitch * 0.5 - accelPitch,
+      0.12
+    );
     this.car.group.rotation.z = THREE.MathUtils.lerp(
       this.car.group.rotation.z,
-      -this.steerAngle * 18,
-      0.12
+      -this.steerAngle * 22,
+      0.14
     );
 
     const wheelSpin = (this.speed * dt) / 0.38;
@@ -290,10 +309,17 @@ export class CarController {
       w.rotation.x += wheelSpin;
     }
 
-    this.car.underglow.material.opacity = this.boosting ? 0.95 : 0.45;
-    this.car.headLight.intensity = this.boosting ? (this.car.tailLight ? 3.8 : 2.4) : (this.car.tailLight ? 2.2 : 1.4);
+    const spdN = THREE.MathUtils.clamp(spdAbs / this.maxSpeed, 0, 1.4);
+    this.car.underglow.material.opacity = this.boosting ? 0.98 : 0.38 + spdN * 0.28;
+    this.car.headLight.intensity = this.boosting
+      ? this.car.tailLight
+        ? 4.2
+        : 2.6
+      : this.car.tailLight
+        ? 2.0 + spdN * 0.4
+        : 1.35;
     if (this.car.thrusterMat) {
-      this.car.thrusterMat.opacity = this.boosting ? 1.0 : 0.5;
+      this.car.thrusterMat.opacity = this.boosting ? 1.0 : 0.42 + spdN * 0.28;
       this.car.thrusterMat.color.set(this.boosting ? 0xff9944 : 0x33ddff);
     }
 
@@ -302,5 +328,9 @@ export class CarController {
 
   getSpeedKmh() {
     return Math.abs(this.speed) * 3.6;
+  }
+
+  getSpeedNorm() {
+    return THREE.MathUtils.clamp(Math.abs(this.speed) / this.maxSpeed, 0, 1.35);
   }
 }

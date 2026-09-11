@@ -7,18 +7,6 @@ import * as THREE from 'three';
 export class BoostTrail {
   constructor(scene, options = {}) {
     this.historyLen = options.lowDetail ? 32 : 48;
-    this.historyL = [];
-    this.historyR = [];
-    // Pool of Vector3s so emit never allocates
-    this._poolL = [];
-    this._poolR = [];
-    for (let i = 0; i < this.historyLen; i++) {
-      this._poolL.push(new THREE.Vector3());
-      this._poolR.push(new THREE.Vector3());
-    }
-    this._histIdx = 0;
-    this._count = 0;
-
     this.active = false;
     this.fade = 0;
 
@@ -32,7 +20,6 @@ export class BoostTrail {
 
     const maxN = this.historyLen;
     this._ribbonPos = new Float32Array(maxN * 2 * 3);
-    this._linePos = new Float32Array(maxN * 3);
     this._indices = new Uint16Array((maxN - 1) * 6);
 
     this.ribbonGeoL = new THREE.BufferGeometry();
@@ -90,7 +77,6 @@ export class BoostTrail {
     scene.add(this.lineL);
     scene.add(this.lineR);
 
-    // Ring buffers of points (stable Vector3 refs)
     this._ringL = new Array(maxN);
     this._ringR = new Array(maxN);
     for (let i = 0; i < maxN; i++) {
@@ -101,48 +87,51 @@ export class BoostTrail {
     this._len = 0;
   }
 
-  emit(origin, forward, boosting) {
-    this.active = boosting;
+  emit(origin, forward, boosting, speedNorm = 0) {
+    const n = Math.max(0, speedNorm);
+    this.active = boosting || n > 0.18;
     this._fwd.copy(forward).normalize();
     this._right.set(this._fwd.z, 0, -this._fwd.x).normalize();
 
-    if (boosting) {
-      this.fade = Math.min(1, this.fade + 0.15);
+    const shouldDraw = boosting || n > 0.14;
+    if (shouldDraw) {
+      const fadeTarget = boosting ? 1 : Math.min(0.78, 0.22 + n * 0.55);
+      this.fade = Math.min(fadeTarget, this.fade + (boosting ? 0.16 : 0.08));
       const rear = this._tmp.copy(origin).addScaledVector(this._fwd, -1.9);
       rear.y += 0.38;
 
       const idx = this._head;
-      this._ringL[idx].copy(rear).addScaledVector(this._right, 0.55);
-      this._ringR[idx].copy(rear).addScaledVector(this._right, -0.55);
+      const spread = 0.52 + n * 0.08;
+      this._ringL[idx].copy(rear).addScaledVector(this._right, spread);
+      this._ringR[idx].copy(rear).addScaledVector(this._right, -spread);
       this._head = (this._head + 1) % this.historyLen;
       if (this._len < this.historyLen) this._len++;
     } else {
-      this.fade = Math.max(0, this.fade - 0.04);
-      if (this._len > 2) {
-        // Advance start by shrinking length (drop oldest)
-        this._len--;
-      }
+      this.fade = Math.max(0, this.fade - 0.045);
+      if (this._len > 2) this._len--;
       if (this.fade <= 0.01) {
         this._len = 0;
         this._head = 0;
       }
     }
 
-    this._rebuildRibbon(this._ringL, this.ribbonGeoL, this.lineGeoL);
-    this._rebuildRibbon(this._ringR, this.ribbonGeoR, this.lineGeoR);
+    this._rebuildRibbon(this._ringL, this.ribbonGeoL, this.lineGeoL, n, boosting);
+    this._rebuildRibbon(this._ringR, this.ribbonGeoR, this.lineGeoR, n, boosting);
 
     const op = this.fade;
-    this.matL.opacity = op * 0.55;
-    this.matR.opacity = op * 0.5;
-    this.lineMatL.opacity = op * 0.95;
-    this.lineMatR.opacity = op * 0.9;
-    this.meshL.visible = op > 0.02;
-    this.meshR.visible = op > 0.02;
-    this.lineL.visible = op > 0.02;
-    this.lineR.visible = op > 0.02;
+    const punch = boosting ? 1 : 0.72 + n * 0.28;
+    this.matL.opacity = op * 0.58 * punch;
+    this.matR.opacity = op * 0.52 * punch;
+    this.lineMatL.opacity = op * 0.96 * punch;
+    this.lineMatR.opacity = op * 0.9 * punch;
+    const vis = op > 0.02;
+    this.meshL.visible = vis;
+    this.meshR.visible = vis;
+    this.lineL.visible = vis;
+    this.lineR.visible = vis;
   }
 
-  _rebuildRibbon(ring, ribbonGeo, lineGeo) {
+  _rebuildRibbon(ring, ribbonGeo, lineGeo, speedNorm, boosting) {
     const n = this._len;
     const posAttr = ribbonGeo.getAttribute('position');
     const lineAttr = lineGeo.getAttribute('position');
@@ -154,7 +143,7 @@ export class BoostTrail {
       return;
     }
 
-    const halfW = 0.12;
+    const halfW = (boosting ? 0.16 : 0.1) * (0.85 + speedNorm * 0.45);
     const start = (this._head - n + this.historyLen) % this.historyLen;
 
     for (let i = 0; i < n; i++) {
@@ -172,7 +161,7 @@ export class BoostTrail {
       else this._dir.normalize();
 
       this._side.set(this._dir.z, 0, -this._dir.x).normalize();
-      const w = halfW * (0.35 + 0.65 * (i / (n - 1)));
+      const w = halfW * (0.32 + 0.68 * (i / (n - 1)));
       this._a.copy(p).addScaledVector(this._side, w);
       this._b.copy(p).addScaledVector(this._side, -w);
 
@@ -209,5 +198,73 @@ export class BoostTrail {
 
   update(_dt) {
     // History-driven; emit handles fade
+  }
+}
+
+/**
+ * Sparse ash-snow drift around the cycle. One Points mesh, wrapping box, no alloc.
+ */
+export class AshSnowField {
+  constructor(scene, options = {}) {
+    const low = !!options.lowDetail;
+    this.count = low ? 72 : 150;
+    this.half = 38;
+    this.ceil = 22;
+    this.floor = -2;
+    this._origin = new THREE.Vector3();
+
+    const pos = new Float32Array(this.count * 3);
+    const vel = new Float32Array(this.count * 3);
+    for (let i = 0; i < this.count; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * this.half * 2;
+      pos[i * 3 + 1] = Math.random() * this.ceil;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * this.half * 2;
+      vel[i * 3] = (Math.random() - 0.5) * 1.6;
+      vel[i * 3 + 1] = -0.7 - Math.random() * 1.4;
+      vel[i * 3 + 2] = (Math.random() - 0.5) * 1.6;
+    }
+    this._vel = vel;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    this.points = new THREE.Points(
+      geo,
+      new THREE.PointsMaterial({
+        color: 0xd8d2c4,
+        size: low ? 0.42 : 0.55,
+        sizeAttenuation: true,
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false,
+      })
+    );
+    this.points.frustumCulled = false;
+    scene.add(this.points);
+  }
+
+  update(dt, origin) {
+    this._origin.copy(origin);
+    const arr = this.points.geometry.attributes.position.array;
+    const vel = this._vel;
+    const hx = this.half;
+    for (let i = 0; i < this.count; i++) {
+      const i3 = i * 3;
+      arr[i3] += vel[i3] * dt;
+      arr[i3 + 1] += vel[i3 + 1] * dt;
+      arr[i3 + 2] += vel[i3 + 2] * dt;
+
+      if (arr[i3 + 1] < this.floor) {
+        arr[i3 + 1] = this.ceil;
+        arr[i3] = origin.x + (Math.random() - 0.5) * hx * 2;
+        arr[i3 + 2] = origin.z + (Math.random() - 0.5) * hx * 2;
+      } else {
+        const dx = arr[i3] - origin.x;
+        const dz = arr[i3 + 2] - origin.z;
+        if (dx > hx) arr[i3] -= hx * 2;
+        else if (dx < -hx) arr[i3] += hx * 2;
+        if (dz > hx) arr[i3 + 2] -= hx * 2;
+        else if (dz < -hx) arr[i3 + 2] += hx * 2;
+      }
+    }
+    this.points.geometry.attributes.position.needsUpdate = true;
   }
 }
