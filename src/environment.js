@@ -36,7 +36,7 @@ export function createEnvironment(scene, options = {}) {
   scene.add(new THREE.HemisphereLight(0x6a6258, 0x1a140e, lowDetail ? 0.32 : 0.26));
 
   // Dusty-cold haze — thin enough that distant peaks still read
-  scene.fog = new THREE.FogExp2(0x3a342c, lowDetail ? 0.00145 : 0.00118);
+  scene.fog = new THREE.FogExp2(0x3a342c, lowDetail ? 0.00115 : 0.00088);
 
   return { lowDetail };
 }
@@ -185,11 +185,12 @@ function mountainMaterial() {
       varying float vY;
       varying float vSlope;
       void main() {
-        vec3 rock = mix(uRock, uDust, smoothstep(-8.0, 40.0, vY) * 0.45);
-        float cap = smoothstep(95.0, 210.0, vY) * smoothstep(0.18, 0.72, vSlope);
-        float ridge = smoothstep(55.0, 140.0, vY) * smoothstep(0.08, 0.4, vSlope) * 0.55;
-        vec3 snow = mix(uAshSnow, uSnow, smoothstep(140.0, 280.0, vY));
-        vec3 col = mix(rock, snow, max(cap, ridge * 0.65));
+        vec3 rock = mix(uRock, uDust, smoothstep(-8.0, 50.0, vY) * 0.4);
+        float byHeight = smoothstep(55.0, 165.0, vY);
+        float bySlope = mix(0.7, 1.0, smoothstep(0.0, 0.42, vSlope));
+        float snowAmt = byHeight * bySlope;
+        vec3 snow = mix(uAshSnow, uSnow, smoothstep(110.0, 260.0, vY));
+        vec3 col = mix(rock, snow, snowAmt);
         gl_FragColor = vec4(col, 1.0);
       }
     `,
@@ -197,80 +198,64 @@ function mountainMaterial() {
 }
 
 /**
- * Towering peaks on the far rim — open valley in the middle so the chase cam
- * sees sky + distant snow ridges, never a canyon tunnel around the road.
+ * Towering snow peaks flanking an OPEN valley — gaps of sky/horizon,
+ * never a canyon wall around the road.
  */
 function addSnowMountains(scene, lowDetail) {
   const mat = mountainMaterial();
+  const snowCapMat = new THREE.MeshBasicMaterial({ color: 0xe4e0d6 });
   const segs = lowDetail ? 5 : 7;
-  const clusters = [
-    { a: 0.18, r: 640, h: 340, w: 210, d: 140 },
-    { a: 0.72, r: 720, h: 390, w: 240, d: 150 },
-    { a: 1.28, r: 680, h: 310, w: 190, d: 130 },
-    { a: 1.85, r: 760, h: 420, w: 260, d: 160 },
-    { a: 2.42, r: 700, h: 355, w: 220, d: 145 },
-    { a: 3.05, r: 780, h: 400, w: 250, d: 155 },
-    { a: 3.62, r: 660, h: 300, w: 180, d: 125 },
-    { a: 4.18, r: 740, h: 375, w: 230, d: 148 },
-    { a: 4.75, r: 690, h: 330, w: 200, d: 138 },
-    { a: 5.35, r: 770, h: 410, w: 255, d: 158 },
-    { a: 5.88, r: 650, h: 320, w: 195, d: 132 },
-  ];
-  const use = lowDetail ? clusters.filter((_, i) => i % 2 === 0) : clusters;
 
-  for (let i = 0; i < use.length; i++) {
-    const s = use[i];
+  // Two flanking ranges with wide openings so the chase cam sees sky
+  const clusters = [
+    { a: 0.55, r: 920, h: 480, w: 260, d: 160 },
+    { a: 0.95, r: 980, h: 540, w: 290, d: 170 },
+    { a: 1.35, r: 940, h: 460, w: 240, d: 150 },
+    { a: 3.55, r: 960, h: 500, w: 270, d: 165 },
+    { a: 3.95, r: 1020, h: 560, w: 300, d: 175 },
+    { a: 4.35, r: 930, h: 470, w: 250, d: 155 },
+  ];
+  if (!lowDetail) {
+    clusters.push(
+      { a: 0.22, r: 1050, h: 420, w: 220, d: 140 },
+      { a: 1.72, r: 1080, h: 400, w: 210, d: 135 },
+      { a: 3.22, r: 1040, h: 430, w: 225, d: 142 },
+      { a: 4.72, r: 1070, h: 410, w: 215, d: 138 }
+    );
+  }
+
+  for (let i = 0; i < clusters.length; i++) {
+    const s = clusters[i];
     const x = Math.cos(s.a) * s.r;
     const z = Math.sin(s.a) * s.r * 0.86;
     const peaks = lowDetail ? 2 : 3;
     for (let p = 0; p < peaks; p++) {
-      const spread = (p - (peaks - 1) * 0.5) * (s.w * 0.38);
-      const ph = s.h * (1 - p * 0.18) * (0.88 + (i % 3) * 0.06);
-      const pw = s.w * (0.42 - p * 0.08);
+      const spread = (p - (peaks - 1) * 0.5) * (s.w * 0.36);
+      const ph = s.h * (1 - p * 0.16) * (0.9 + (i % 3) * 0.05);
+      const pw = s.w * (0.4 - p * 0.07);
+      const ox = x + Math.cos(s.a + 1.57) * spread;
+      const oz = z + Math.sin(s.a + 1.57) * spread;
       const cone = new THREE.Mesh(new THREE.ConeGeometry(pw, ph, segs), mat);
-      cone.position.set(x + Math.cos(s.a + 1.57) * spread, ph * 0.42 - 18, z + Math.sin(s.a + 1.57) * spread);
+      const cy = ph * 0.38 - 22;
+      cone.position.set(ox, cy, oz);
       cone.rotation.y = s.a + p * 0.2;
-      cone.rotation.z = (p === 1 ? 0.06 : p === 2 ? -0.05 : 0.02) * (i % 2 === 0 ? 1 : -1);
+      cone.rotation.z = (p === 1 ? 0.05 : p === 2 ? -0.04 : 0.015) * (i % 2 === 0 ? 1 : -1);
       scene.add(cone);
 
-      const shelf = new THREE.Mesh(
-        new THREE.BoxGeometry(pw * 1.6, ph * 0.22, s.d * 0.55),
-        mat
-      );
-      shelf.position.set(x + Math.cos(s.a) * 28, ph * 0.12 - 10, z + Math.sin(s.a) * 28);
-      shelf.rotation.y = s.a;
-      scene.add(shelf);
+      const capH = ph * 0.22;
+      const capR = pw * 0.34;
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(capR, capH, segs), snowCapMat);
+      cap.position.set(ox, cy + ph * 0.38, oz);
+      cap.rotation.copy(cone.rotation);
+      scene.add(cap);
     }
-  }
-
-  // Mid-distance plateau shelves — still well off the road (r ~ 420)
-  const plateaus = lowDetail
-    ? [
-        { a: 0.9, r: 430, h: 48, w: 90, d: 40 },
-        { a: 2.7, r: 450, h: 56, w: 100, d: 44 },
-        { a: 4.6, r: 440, h: 42, w: 85, d: 38 },
-      ]
-    : [
-        { a: 0.55, r: 410, h: 52, w: 95, d: 42 },
-        { a: 1.6, r: 445, h: 64, w: 110, d: 48 },
-        { a: 2.85, r: 425, h: 46, w: 88, d: 40 },
-        { a: 4.05, r: 460, h: 70, w: 118, d: 50 },
-        { a: 5.2, r: 435, h: 50, w: 92, d: 41 },
-      ];
-  for (const p of plateaus) {
-    const x = Math.cos(p.a) * p.r;
-    const z = Math.sin(p.a) * p.r * 0.86;
-    const block = new THREE.Mesh(new THREE.BoxGeometry(p.w, p.h, p.d), mat);
-    block.position.set(x, p.h * 0.28 - 8, z);
-    block.rotation.y = p.a * 0.4;
-    scene.add(block);
   }
 }
 
 function addDistantRidge(scene, lowDetail) {
-  const segments = lowDetail ? 28 : 40;
-  const radius = 980;
-  const peakH = 280;
+  const segments = lowDetail ? 24 : 36;
+  const radius = 1280;
+  const peakH = 210;
   const positions = [];
   const indices = [];
 
@@ -281,11 +266,11 @@ function addDistantRidge(scene, lowDetail) {
       Math.sin(step * 3.4) * 0.5 +
       Math.sin(step * 9.1) * 0.22 +
       Math.cos(step * 2.1 + 0.7) * 0.28;
-    const h = Math.max(40, (0.45 + noise) * peakH);
+    const h = Math.max(28, (0.35 + noise) * peakH);
     const x = Math.cos(t) * radius;
     const z = Math.sin(t) * radius * 0.88;
-    positions.push(x, -6, z);
-    positions.push(x * 0.97, h - 6, z * 0.97);
+    positions.push(x, -8, z);
+    positions.push(x * 0.985, h - 8, z * 0.985);
   }
   for (let i = 0; i < segments; i++) {
     const a = i * 2;
@@ -319,14 +304,14 @@ function addMonumentalMonoliths(scene, lowDetail) {
   });
 
   const specs = [
-    { a: 0.4, r: 155, h: 88, w: 16, d: 10, yaw: 0.35, lean: 0.08, bury: 14 },
-    { a: 1.15, r: 195, h: 118, w: 20, d: 12, yaw: -0.22, lean: -0.12, bury: 22 },
-    { a: 2.05, r: 170, h: 72, w: 14, d: 9, yaw: 0.7, lean: 0.16, bury: 10 },
-    { a: 2.9, r: 220, h: 132, w: 24, d: 14, yaw: 0.12, lean: -0.07, bury: 28 },
-    { a: 3.75, r: 180, h: 80, w: 16, d: 10, yaw: -0.45, lean: 0.11, bury: 16 },
-    { a: 4.55, r: 210, h: 104, w: 18, d: 11, yaw: 0.55, lean: -0.09, bury: 18 },
-    { a: 5.35, r: 160, h: 64, w: 13, d: 8, yaw: -0.28, lean: 0.14, bury: 8 },
-    { a: 6.0, r: 240, h: 148, w: 26, d: 15, yaw: 0.2, lean: -0.05, bury: 32 },
+    { a: 0.4, r: 210, h: 96, w: 14, d: 9, yaw: 0.35, lean: 0.08, bury: 16 },
+    { a: 1.15, r: 265, h: 124, w: 16, d: 10, yaw: -0.22, lean: -0.12, bury: 24 },
+    { a: 2.05, r: 230, h: 78, w: 12, d: 8, yaw: 0.7, lean: 0.16, bury: 12 },
+    { a: 2.9, r: 300, h: 140, w: 18, d: 12, yaw: 0.12, lean: -0.07, bury: 30 },
+    { a: 3.75, r: 245, h: 86, w: 13, d: 9, yaw: -0.45, lean: 0.11, bury: 18 },
+    { a: 4.55, r: 280, h: 110, w: 15, d: 10, yaw: 0.55, lean: -0.09, bury: 20 },
+    { a: 5.35, r: 220, h: 70, w: 11, d: 7, yaw: -0.28, lean: 0.14, bury: 10 },
+    { a: 6.0, r: 320, h: 156, w: 20, d: 13, yaw: 0.2, lean: -0.05, bury: 34 },
   ];
   const use = lowDetail ? specs.filter((_, i) => i % 2 === 0) : specs;
   const _offset = new THREE.Vector3();
@@ -428,14 +413,14 @@ function addLightBridges(scene, lowDetail) {
     opacity: 0.45,
   });
   const spans = lowDetail
-    ? [{ a: 1.1, r: 200, y: 42, len: 70 }]
+    ? [{ a: 1.1, r: 250, y: 58, len: 54 }]
     : [
-        { a: 0.85, r: 188, y: 48, len: 82 },
-        { a: 2.6, r: 205, y: 62, len: 96 },
-        { a: 4.4, r: 192, y: 38, len: 74 },
+        { a: 0.85, r: 248, y: 64, len: 62 },
+        { a: 2.6, r: 270, y: 78, len: 70 },
+        { a: 4.4, r: 255, y: 52, len: 56 },
       ];
   for (const s of spans) {
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(s.len, 0.35, 1.6), cyan);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(s.len, 0.22, 0.9), cyan);
     beam.position.set(Math.cos(s.a) * s.r, s.y, Math.sin(s.a) * s.r * 0.78);
     beam.rotation.y = s.a + Math.PI / 2;
     scene.add(beam);

@@ -46,7 +46,7 @@ const quality = createQuality(renderer);
 quality.resize(view0.w, view0.h);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(64, view0.w / Math.max(1, view0.h), 0.22, 2600);
+const camera = new THREE.PerspectiveCamera(62, view0.w / Math.max(1, view0.h), 0.18, 2800);
 
 const envOpts = { detail: quality.detail };
 createEnvironment(scene, envOpts);
@@ -57,15 +57,15 @@ const controller = new CarController(carMesh, road);
 const trail = new BoostTrail(scene, { lowDetail: quality.mobile });
 const ashSnow = new AshSnowField(scene, { lowDetail: quality.mobile });
 
-// NFS chase: hood-adjacent, low, looking far into the vista
-const camRestOffset = new THREE.Vector3(0, 1.44, -5.05);
-const camRestLook = new THREE.Vector3(0, 0.34, 11.5);
+// NFS chase: bumper-adjacent, low, car large in the lower third
+const camRestOffset = new THREE.Vector3(0, 1.18, -4.15);
+const camRestLook = new THREE.Vector3(0, 0.48, 5.6);
 const camPos = new THREE.Vector3();
 const lookTarget = new THREE.Vector3();
 const _offset = new THREE.Vector3();
 const _look = new THREE.Vector3();
 const _forward = new THREE.Vector3();
-const BASE_FOV = 64;
+const BASE_FOV = 62;
 let camRoll = 0;
 let roadScroll = 0;
 let shakeT = 0;
@@ -172,9 +172,9 @@ window.addEventListener('touchend', unlockAudio, { once: true, passive: true });
 
 {
   const p = carMesh.group.position;
-  camera.position.set(p.x, p.y + 1.55, p.z - 5.2);
-  camera.lookAt(p.x, p.y + 0.4, p.z + 11);
-  lookTarget.set(p.x, p.y + 0.4, p.z + 11);
+  camera.position.set(p.x, p.y + 1.22, p.z - 4.2);
+  camera.lookAt(p.x, p.y + 0.5, p.z + 5.6);
+  lookTarget.set(p.x, p.y + 0.5, p.z + 5.6);
 }
 
 let hudTimer = 0;
@@ -188,39 +188,39 @@ function updateCamera(dt) {
   const brake = Math.max(0, -controller.longG);
   const pull = Math.max(0, controller.longG);
 
-  const fovTarget = BASE_FOV + speedNorm * 28 + boost * 12 - brake * 4;
+  const fovTarget = BASE_FOV + speedNorm * 24 + boost * 11 - brake * 3.5;
   camera.fov = THREE.MathUtils.lerp(camera.fov, fovTarget, 1 - Math.pow(0.04, dt));
   camera.updateProjectionMatrix();
 
   _offset.copy(camRestOffset);
-  _offset.z -= speedNorm * 3.4 + boost * 0.75 - brake * 0.85;
-  _offset.y -= speedNorm * 0.4;
-  _offset.y += pull * 0.2 - brake * 0.12;
-  _offset.y = Math.max(1.02, _offset.y);
-  _offset.x += controller.steerAngle * 28 * (0.35 + speedNorm * 0.65);
+  _offset.z -= speedNorm * 2.15 + boost * 0.55 - brake * 0.7;
+  _offset.y -= speedNorm * 0.22;
+  _offset.y += pull * 0.16 - brake * 0.1;
+  _offset.y = Math.max(0.98, _offset.y);
+  _offset.x += controller.steerAngle * 22 * (0.3 + speedNorm * 0.55);
 
   _offset.applyQuaternion(g.quaternion);
   camPos.copy(g.position).add(_offset);
 
   if (!reduceMotion) {
     shakeT += dt * (18 + speedNorm * 22);
-    const amp = speedNorm * speedNorm * (boost ? 0.05 : 0.026);
+    const amp = speedNorm * speedNorm * (boost ? 0.042 : 0.02);
     camPos.x += Math.sin(shakeT * 1.7) * amp;
-    camPos.y += Math.sin(shakeT * 2.15) * amp * 0.55;
+    camPos.y += Math.sin(shakeT * 2.15) * amp * 0.5;
   }
 
   _look.copy(camRestLook);
-  _look.z += speedNorm * 3.2;
-  _look.y -= brake * 0.32 - pull * 0.08;
+  _look.z += speedNorm * 1.35;
+  _look.y -= brake * 0.22 - pull * 0.07;
   _look.applyQuaternion(g.quaternion).add(g.position);
-  lookTarget.lerp(_look, 1 - Math.pow(0.0012, dt));
+  lookTarget.lerp(_look, 1 - Math.pow(0.0015, dt));
 
-  const followPow = THREE.MathUtils.lerp(0.028, 0.09, Math.min(1, speedNorm));
+  const followPow = THREE.MathUtils.lerp(0.024, 0.085, Math.min(1, speedNorm));
   camera.position.lerp(camPos, 1 - Math.pow(followPow, dt));
   camera.lookAt(lookTarget);
 
-  const rollTarget = -controller.steerAngle * 14 * (0.35 + speedNorm * 0.8);
-  camRoll = THREE.MathUtils.lerp(camRoll, rollTarget, 1 - Math.pow(0.04, dt));
+  const rollTarget = -controller.steerAngle * 4.8 * (0.3 + speedNorm * 0.65);
+  camRoll = THREE.MathUtils.lerp(camRoll, rollTarget, 1 - Math.pow(0.045, dt));
   camera.rotateZ(camRoll);
 }
 

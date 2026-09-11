@@ -207,10 +207,10 @@ export class BoostTrail {
 export class AshSnowField {
   constructor(scene, options = {}) {
     const low = !!options.lowDetail;
-    this.count = low ? 72 : 150;
-    this.half = 38;
-    this.ceil = 22;
-    this.floor = -2;
+    this.count = low ? 56 : 110;
+    this.half = 34;
+    this.ceil = 16;
+    this.floor = -1.5;
     this._origin = new THREE.Vector3();
 
     const pos = new Float32Array(this.count * 3);
@@ -229,11 +229,11 @@ export class AshSnowField {
     this.points = new THREE.Points(
       geo,
       new THREE.PointsMaterial({
-        color: 0xd8d2c4,
-        size: low ? 0.42 : 0.55,
+        color: 0xdcd6cc,
+        size: low ? 0.14 : 0.18,
         sizeAttenuation: true,
         transparent: true,
-        opacity: 0.42,
+        opacity: 0.32,
         depthWrite: false,
       })
     );
